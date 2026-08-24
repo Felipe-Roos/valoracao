@@ -1,0 +1,109 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>{{ project.name }} — {{ selected_year }}</title>
+    <link rel="stylesheet" href="{% static 'files_viewer/style.css' %}">
+    <link rel="stylesheet" href="{% static 'valuation/valuation.css' %}">
+</head>
+<body>
+    <header>
+        <h1><a href="{% url 'files_viewer:project_list' %}">Tabela de Valoração de Programas</a></h1>
+        <nav class="breadcrumbs">
+            <a href="{% url 'files_viewer:project_list' %}">Projetos</a>
+            <span class="sep">/</span>
+            <a href="{% url 'files_viewer:file_list' project.slug %}?year={{ selected_year }}">{{ project.name }}</a>
+            <span class="sep">/</span>
+            <span>{{ selected_year }}</span>
+        </nav>
+        <a class="valuation-link" href="{% url 'valuation:year_list' project.slug %}">Ver resumo de valoração</a>
+    </header>
+
+    <main>
+        <form method="get" class="year-selector">
+            <label for="year">Ano de valoração:</label>
+            {% if available_years %}
+            <select id="year" name="year">
+                {% for y in available_years %}
+                <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+            {% else %}
+            <input type="number" id="year" name="year" value="{{ selected_year }}" min="2000" max="2100">
+            {% endif %}
+            <button type="submit">Aplicar</button>
+            <span class="year-total-badge">Total valorado em {{ selected_year }}: R$ <span id="year-total">{{ year_total|floatformat:2 }}</span></span>
+        </form>
+
+        {% if not folder_configured %}
+            <div class="alert">
+                A pasta deste projeto ainda não foi configurada.<br>
+                Defina <code>PROJECT_N_ROOT</code> no arquivo <code>.env</code> apontando para a pasta
+                sincronizada do OneDrive que contém as pastas de ano deste indicador
+                (caminho atual: <code>{{ folder_path }}</code>).
+            </div>
+        {% elif not entries %}
+            <p class="empty">
+                Nenhum arquivo encontrado para {{ project.name }} em {{ selected_year }}.
+                Confira se existe uma pasta "{{ selected_year }}" com subpastas de mês e uma
+                pasta de evidências contendo a subpasta deste projeto.
+            </p>
+        {% else %}
+            <table class="file-table">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Mês</th>
+                        <th>Tipo</th>
+                        <th>Valoração</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in entries %}
+                        <tr class="file-row" data-file-path="{{ entry.rel_path }}" data-file-name="{{ entry.name }}"
+                            data-valuation-total="{{ entry.valuation_total|default_if_none:'0' }}"
+                            data-valuation-count="{{ entry.valuation_count|default:0 }}">
+                            <td>{{ entry.name }}</td>
+                            <td>{{ entry.month_label }}</td>
+                            <td><span class="badge">{{ entry.label }}</span></td>
+                            <td class="valuation-status">
+                                {% if entry.valuation_total %}
+                                <span class="valued-badge">✓ R$ {{ entry.valuation_total|floatformat:2 }}{% if entry.valuation_count > 1 %} ({{ entry.valuation_count }}x){% endif %}</span>
+                                {% else %}
+                                <span class="not-valued">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="actions">
+                                {% if entry.previewable %}
+                                <a href="{% url 'files_viewer:file_preview' project.slug entry.rel_path %}" target="_blank" rel="noopener">Visualizar</a>
+                                {% endif %}
+                                <a href="{% url 'files_viewer:file_download' project.slug entry.rel_path %}">Baixar</a>
+                                <button type="button" class="valorar-btn">Valorar</button>
+                            </td>
+                        </tr>
+                        <tr class="valuation-detail-row" hidden>
+                            <td colspan="5">
+                                <div class="file-valuation-panel"></div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    </main>
+
+    {{ valuation_catalog|json_script:"valuation-catalog-data" }}
+    <script>
+        window.VALUATION_CONFIG = {
+            csrfToken: "{{ csrf_token }}",
+            entryCreateUrl: "{% url 'valuation:entry_create' project.slug selected_year %}",
+            year: {{ selected_year }}
+        };
+    </script>
+    <script src="{% static 'files_viewer/file_valuation.js' %}"></script>
+</body>
+</html>

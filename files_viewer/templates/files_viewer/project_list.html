@@ -1,0 +1,39 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tabela de Valoração de Programas</title>
+    <link rel="stylesheet" href="{% static 'files_viewer/style.css' %}">
+    <link rel="stylesheet" href="{% static 'valuation/valuation.css' %}">
+</head>
+<body>
+    <header>
+        <h1>Tabela de Valoração de Programas</h1>
+    </header>
+
+    <main>
+        {% if not projects %}
+            <p class="empty">
+                Nenhum projeto configurado. Adicione PROJECT_1_SLUG, PROJECT_1_NAME e
+                PROJECT_1_FOLDER no arquivo .env.
+            </p>
+        {% else %}
+            <div class="project-grid">
+                {% for project in projects %}
+                <div class="project-card{% if not project.folder_configured %} not-configured{% endif %}">
+                    <a class="project-card-link" href="{% url 'files_viewer:file_list' project.slug %}">
+                        <span class="project-icon">📁</span>
+                        <span class="project-name">{{ project.name }}</span>
+                        {% if not project.folder_configured %}
+                            <span class="project-warning">Pasta não configurada</span>
+                        {% endif %}
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </main>
+</body>
+</html>

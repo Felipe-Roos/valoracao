@@ -1,0 +1,152 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>Valoração {{ project_year.year }} — {{ project.name }}</title>
+    <link rel="stylesheet" href="{% static 'files_viewer/style.css' %}">
+    <link rel="stylesheet" href="{% static 'valuation/valuation.css' %}">
+</head>
+<body>
+    <header>
+        <h1><a href="{% url 'files_viewer:project_list' %}">Tabela de Valoração de Programas</a></h1>
+        <nav class="breadcrumbs">
+            <a href="{% url 'files_viewer:project_list' %}">Projetos</a>
+            <span class="sep">/</span>
+            <a href="{% url 'files_viewer:file_list' project.slug %}">{{ project.name }}</a>
+            <span class="sep">/</span>
+            <a href="{% url 'valuation:year_list' project.slug %}">Valoração</a>
+            <span class="sep">/</span>
+            <span>{{ project_year.year }}</span>
+        </nav>
+    </header>
+
+    <main class="valuation-main">
+        <section class="confirmed-panel">
+            <h2>Itens confirmados em {{ project_year.year }}</h2>
+            <p class="running-total">Total: R$ <span id="running-total">{{ total|floatformat:2 }}</span></p>
+            <ul id="confirmed-entries">
+                {% for entry in entries %}
+                <li data-entry-id="{{ entry.id }}">
+                    <span class="entry-product">
+                        {{ entry.product.name }}
+                        {% if entry.file_name %}
+                        <a class="entry-file" href="{% url 'files_viewer:file_preview' project.slug entry.file_path %}" target="_blank" rel="noopener">📎 {{ entry.file_name }}</a>
+                        {% endif %}
+                    </span>
+                    <span class="entry-value">R$ {{ entry.final_value|floatformat:2 }}</span>
+                    <button type="button" class="remove-entry-btn" data-entry-id="{{ entry.id }}">remover</button>
+                </li>
+                {% empty %}
+                <li class="empty-item">Nenhum item confirmado ainda.</li>
+                {% endfor %}
+            </ul>
+        </section>
+
+        <section class="catalog">
+            {% for category in categories %}
+            <div class="category-block">
+                <h2>{{ category.name }}</h2>
+                {% for product in category.products.all %}
+                <div class="product-row" data-product-id="{{ product.id }}">
+                    <label class="product-toggle">
+                        <input type="checkbox" class="product-check">
+                        <span>{{ product.name }}</span>
+                    </label>
+
+                    <div class="product-detail" hidden>
+                        {% if product.valuation_criteria %}
+                        <p class="hint">Critério: {{ product.valuation_criteria }}</p>
+                        {% endif %}
+                        {% if product.base_value_note %}
+                        <p class="hint warn">{{ product.base_value_note }}</p>
+                        {% endif %}
+
+                        <div class="field-row">
+                            <label>{{ product.quantity_label }}</label>
+                            <input type="number" class="field-quantity" value="1" min="0" step="0.01">
+                        </div>
+
+                        <div class="field-row">
+                            <label>Valor base (R$)</label>
+                            <input type="number" class="field-base-value" step="0.01"
+                                   value="{{ product.base_value|default_if_none:'' }}">
+                        </div>
+
+                        {% if product.multipliers.all %}
+                        <div class="multipliers">
+                            <p class="hint">Multiplicadores aplicáveis</p>
+                            {% regroup product.multipliers.all by exclusive_group as grouped_multipliers %}
+                            {% for group in grouped_multipliers %}
+                                {% if group.grouper %}
+                                <div class="multiplier-group">
+                                    {% for m in group.list %}
+                                    <label class="multiplier-option">
+                                        <input type="radio" name="group-{{ product.id }}-{{ group.grouper }}"
+                                               class="multiplier-input" data-multiplier-id="{{ m.id }}"
+                                               data-type="{{ m.factor_type }}"
+                                               data-factor="{{ m.factor_value|default_if_none:'' }}">
+                                        {{ m.label }}
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                    {% for m in group.list %}
+                                    <div class="multiplier-option-block">
+                                        <label class="multiplier-option">
+                                            <input type="checkbox" class="multiplier-input"
+                                                   data-multiplier-id="{{ m.id }}" data-type="{{ m.factor_type }}"
+                                                   data-factor="{{ m.factor_value|default_if_none:'' }}">
+                                            {{ m.label }}
+                                        </label>
+                                        {% if m.factor_type == 'variable_multiply' %}
+                                        <input type="number" step="0.01" class="multiplier-variable-input"
+                                               data-multiplier-id="{{ m.id }}" placeholder="valor" disabled>
+                                        {% elif m.factor_type == 'add_per_unit' %}
+                                        <input type="number" step="1" class="multiplier-unit-input"
+                                               data-multiplier-id="{{ m.id }}" placeholder="n" disabled>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        <div class="field-row">
+                            <label>Observações (opcional)</label>
+                            <input type="text" class="field-notes" maxlength="255">
+                        </div>
+
+                        <div class="computed-preview">
+                            Sugestão calculada: <strong class="preview-value">R$ 0,00</strong>
+                            <button type="button" class="use-suggestion-btn">Usar este valor</button>
+                        </div>
+
+                        <div class="field-row">
+                            <label>Valor final a salvar (R$)</label>
+                            <input type="number" class="field-final-value" step="0.01">
+                        </div>
+
+                        <button type="button" class="confirm-btn">OK — Confirmar item</button>
+                        <span class="save-status"></span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </section>
+    </main>
+
+    <script>
+        window.VALUATION_CONFIG = {
+            csrfToken: "{{ csrf_token }}",
+            entryCreateUrl: "{% url 'valuation:entry_create' project.slug project_year.year %}",
+            entryDeleteUrlTemplate: "{% url 'valuation:entry_delete' project.slug project_year.year 0 %}".replace('/0/excluir/', '/__ID__/excluir/')
+        };
+    </script>
+    <script src="{% static 'valuation/valuation.js' %}"></script>
+</body>
+</html>

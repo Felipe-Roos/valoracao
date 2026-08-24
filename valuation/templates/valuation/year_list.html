@@ -1,0 +1,55 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Valoração — {{ project.name }}</title>
+    <link rel="stylesheet" href="{% static 'files_viewer/style.css' %}">
+    <link rel="stylesheet" href="{% static 'valuation/valuation.css' %}">
+</head>
+<body>
+    <header>
+        <h1><a href="{% url 'files_viewer:project_list' %}">Tabela de Valoração de Programas</a></h1>
+        <nav class="breadcrumbs">
+            <a href="{% url 'files_viewer:project_list' %}">Projetos</a>
+            <span class="sep">/</span>
+            <a href="{% url 'files_viewer:file_list' project.slug %}">{{ project.name }}</a>
+            <span class="sep">/</span>
+            <span>Valoração</span>
+        </nav>
+    </header>
+
+    <main>
+        {% if not folder_configured %}
+            <div class="alert">
+                A pasta deste projeto ainda não foi configurada.<br>
+                Defina <code>PROJECT_N_ROOT</code> no arquivo <code>.env</code> para os anos
+                aparecerem aqui automaticamente, de acordo com as pastas do OneDrive.
+            </div>
+        {% endif %}
+
+        {% if not years %}
+            <p class="empty">Nenhum ano encontrado para este projeto.</p>
+        {% else %}
+            <div class="year-grid">
+                {% for py in years %}
+                <a class="year-card" href="{% url 'valuation:year_detail' project.slug py.year %}">
+                    <span class="year-number">{{ py.year }}</span>
+                    <span class="year-total">R$ {{ py.total|default:0|floatformat:2 }}</span>
+                </a>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% if not folder_configured %}
+        <form method="post" action="{% url 'valuation:year_create' project.slug %}" class="new-year-form">
+            {% csrf_token %}
+            <label for="year">Novo ano de valoração</label>
+            <input type="number" name="year" id="year" min="2000" max="2100" placeholder="2026" required>
+            <button type="submit">+ Criar</button>
+        </form>
+        {% endif %}
+    </main>
+</body>
+</html>
